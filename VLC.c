@@ -23,7 +23,7 @@
 #define DCT_COEFF_FIRST_CODE_MAX_VALUE 4
 #define DCT_COEFF_NEXT_CODE_MAX_LEN 4
 #define DCT_COEFF_NEXT_CODE_MAX_VALUE 8
-#define NOTHING -9527
+#define NOTHING 9527
 
 void ADDENTRY(int** table, char* code, int value)
 {
@@ -46,12 +46,11 @@ void build_addrinc_VLCtable(video_struct* video)
 		video->macro_addrinc_VLCtable[i] = allocate_mem;		
 	}
 	memset(allocate_mem, NOTHING, ADDR_CODE_MAX_LEN * ADDR_CODE_MAX_VALUE*sizeof(int));
-    //macro_addrinc_VLCtable[code_len][code] = value
-    //                          code 1 
+    //macro_addrinc_VLCtable[code_len][code] = value    
     video->macro_addrinc_VLCtable[1][1] = 1;
     //						  code 011
     video->macro_addrinc_VLCtable[3][3] = 2;
-    //						  code 010
+    //						  code 011
     video->macro_addrinc_VLCtable[3][2] = 3;
     //					     code 0011
     video->macro_addrinc_VLCtable[4][3] = 4;
@@ -174,7 +173,7 @@ void build_B_VLCtable(int** table)
     ADDENTRY(table, "000001", 0x11);
 }
 
-static inline void build_cbp(int** table)
+static inline void build_cbp(VLCTable &vlc)
 {
 	table = (int**)malloc(CBP_CODE_MAX_LEN*sizeof(int*));
 	int* allocate_mem = (int*)malloc(CBP_CODE_MAX_LEN * CBP_CODE_MAX_VALUE*sizeof(int));
@@ -562,20 +561,40 @@ void build_dct_coeff_common(int** table)
     ADDENTRY(table, "00000000000111011", (29 << 8 | 1) & 0xff00 | -(entry.value & 0xff) & 0xff);
     ADDENTRY(table, "00000000000111001", (30 << 8 | 1) & 0xff00 | -(entry.value & 0xff) & 0xff);
     ADDENTRY(table, "00000000000110111", (31 << 8 | 1) & 0xff00 | -(entry.value & 0xff) & 0xff);
-    ADDENTRY(table, "000001", -2); // escape
+    ADDENTRY(s_table, "000001", -2); // escape
 }
 
 void build_dct_coeff_first(int** table)
 {
-    build_dct_coeff_common(table);
-    ADDENTRY(table, "10", 0x0001);
-    ADDENTRY(table, "11", 0x00ff);
+	table = (int**)malloc(DCT_COEFF_FIRST_CODE_MAX_LEN*sizeof(int*));
+	int* allocate_mem = (int*)malloc(DCT_COEFF_FIRST_CODE_MAX_LEN * DCT_COEFF_FIRST_CODE_MAX_VALUE*sizeof(int));
+	for(int i=0 ; i<DCT_COEFF_FIRST_CODE_MAX_LEN ; i++, allocate_mem+=DCT_COEFF_FIRST_CODE_MAX_VALUE)
+	{
+		table[i] = allocate_mem;		
+	}
+	memset(allocate_mem, NOTHING, DCT_COEFF_FIRST_CODE_MAX_LEN * DCT_COEFF_FIRST_CODE_MAX_VALUE*sizeof(int));
+
+    std::vector<VLCTableEntry> s_table;
+    build_dct_coeff_common(s_table);
+    ADDENTRY(s_table, "10", 0x0001);
+    ADDENTRY(s_table, "11", 0x00ff);
+    vlc.buildTable(s_table);
 }
 
-static inline void build_dct_coeff_next(int** table)
+static inline void build_dct_coeff_next(VLCTable &vlc)
 {
-    build_dct_coeff_common(table);
-    ADDENTRY(table, "01", -1); // EOB
-    ADDENTRY(table, "110", 0x0001);
-    ADDENTRY(table, "111", 0x00ff);
+	table = (int**)malloc(DCT_COEFF_NEXT_CODE_MAX_LEN*sizeof(int*));
+	int* allocate_mem = (int*)malloc(DCT_COEFF_NEXT_CODE_MAX_LEN * DCT_COEFF_NEXT_CODE_MAX_VALUE*sizeof(int));
+	for(int i=0 ; i<DCT_COEFF_NEXT_CODE_MAX_LEN ; i++, allocate_mem+=DCT_COEFF_NEXT_CODE_MAX_VALUE)
+	{
+		table[i] = allocate_mem;		
+	}
+	memset(allocate_mem, NOTHING, DCT_COEFF_NEXT_CODE_MAX_LEN * DCT_COEFF_NEXT_CODE_MAX_VALUE*sizeof(int));
+
+    std::vector<VLCTableEntry> s_table;
+    build_dct_coeff_common(s_table);
+    ADDENTRY(s_table, "10", -1); // EOB
+    ADDENTRY(s_table, "110", 0x0001);
+    ADDENTRY(s_table, "111", 0x00ff);
+    vlc.buildTable(s_table);
 }
