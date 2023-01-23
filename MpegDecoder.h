@@ -4,53 +4,9 @@ typedef struct Pixel{
 	uint8_t b, g, r;
 }Pixel;
 
-
-//the video structure
-typedef struct video_struct{
-	uint8_t* stream;
-	uint32_t next_start_code;
-	long pos_ind;
-	uint64_t bits;
-	int b_len;
-	uint64_t And_table[33];
-	pixel* backward_ref, forward_ref;
-
-	int width, width_mb;
-    int height, height_mb;
-    double pel_aspect_ratio;
-    double picture_rate;
-	int bit_rate;
-	int marker_bit;
-	int vbv_buffer_size;
-    int8_t constrained_parameters_flag;
-
-    uint8_t intra_q_matrix[8][8];
-    uint8_t non_intra_q_matrix[8][8];
-
-	Sequence_Header cur_sequence;
-	GOP_Header cur_gop;
-	Picture_Header cur_picture;
-	Slice_Header cur_slice;
-	Macroblock cur_mb;
-
-	int** macro_addrinc_VLCtable;
-    int** macro_I_VLCtable;
-    int** macro_P_VLCtable;
-    int** macro_B_VLCtable;
-    int** cbp_VLCtable;
-    int** mv_VLCtable;
-    int** dct_dc_luma_VLCtable;
-    int** dct_dc_chroma_VLCtable;
-    int** dct_coeff_first_VLCtable;
-    int** dct_coeff_next_VLCtable;
-
-    Pixel** frame;
-    int nframes;
-}video_struct;
-
 //Sequence layer
 //start with sequence_header_code 0x000001B3
-typedef struct Sequece_Header{
+typedef struct Sequence_Header{
     int width, width_mb;
     int height, height_mb;
     double pel_aspect_ratio;
@@ -62,7 +18,7 @@ typedef struct Sequece_Header{
 
     uint8_t intra_q_matrix[64];
     uint8_t non_intra_q_matrix[64];
-}Sequece_Header;
+}Sequence_Header;
 
 //Group of pictures layer
 //start with group_start_code 0x000001B8
@@ -122,3 +78,63 @@ typedef struct Macroblock{
     int recon_right_for, recon_down_for;
     int recon_right_back, recon_down_back;
 }Macroblock;
+
+//the video structure
+typedef struct video_struct{
+	uint8_t* stream;
+	uint32_t next_start_code;
+	long pos_ind;
+	uint64_t bits;
+	int b_len;
+	uint64_t And_table[33];
+	Pixel* backward_ref, forward_ref;
+
+	int width, width_mb;
+    int height, height_mb;
+    double pel_aspect_ratio;
+    double picture_rate;
+	int bit_rate;
+	int marker_bit;
+	int vbv_buffer_size;
+    int8_t constrained_parameters_flag;
+
+    uint8_t intra_q_matrix[64];
+    uint8_t non_intra_q_matrix[64];
+
+	Sequence_Header cur_sequence;
+	GOP_Header cur_gop;
+	Picture_Header cur_picture;
+	Slice_Header cur_slice;
+	Macroblock cur_mb;
+
+	int** macro_addrinc_VLCtable;
+    int** macro_I_VLCtable;
+    int** macro_P_VLCtable;
+    int** macro_B_VLCtable;
+    int** cbp_VLCtable;
+    int** mv_VLCtable;
+    int** dct_dc_luma_VLCtable;
+    int** dct_dc_chroma_VLCtable;
+    int** dct_coeff_first_VLCtable;
+    int** dct_coeff_next_VLCtable;
+
+    Pixel** frame;
+    int nframes;
+}video_struct;
+
+void idct1(int *x, int *y, int ps, int half);
+void idct(int *b);
+void ADDENTRY(int** table, char* code, int value);
+void build_addrinc_VLCtable(video_struct* video);
+static inline void build_I_VLCtable(int** table);
+static inline void build_P_VLCtable(int** table);
+void build_B_VLCtable(int** table);
+static inline void build_cbp(int** table);
+void build_mv(int** table);
+void build_dct_dc_luma(int** table);
+void build_dct_dc_chroma(int** table);
+void build_dct_coeff_common(int** table);
+void build_dct_coeff_first(int** table);
+static inline void build_dct_coeff_next(int** table);
+
+

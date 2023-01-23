@@ -3,9 +3,9 @@
 #include <malloc.h>
 #include <stdint.h>
 #include "MpegDecoder.h"
-#include "IDCT.c"
-#include "VLC.c"
 
+#define true 1
+#define false 0
 #define picture_start_code 0x00000100
 #define slice_start_codes 0x00000101
 #define user_data_start_code 0x000001b2
@@ -15,7 +15,7 @@
 #define sequence_end_code 0x000001b7
 #define group_start_code 0x000001b8
 #define system_start_codes 0x000001b9
-#define NOTHING 9527
+#define NOTHING -9527
 
 #define MAX_N_FRAMES 200
 
@@ -60,7 +60,7 @@ uint32_t nextbits(int n, video_struct* video, int popout)
 	//if the number of bits needed is less than that in buffer
 	if(n <= changed_len)
 	{
-		nbits = (changed_bits | And_table[n]) >> (64-n);
+		nbits = (changed_bits | video->And_table[n]) >> (64-n);
 		changed_bits <<= n;
 		changed_len -= n;
 	}
@@ -75,7 +75,7 @@ uint32_t nextbits(int n, video_struct* video, int popout)
 			changed_pos_ind++;
 		}
 		
-		nbits = (changed_bits | And_table[n]) >> (64-n);
+		nbits = (changed_bits | video->And_table[n]) >> (64-n);
 		changed_bits <<= n;
 		changed_len -= n;
 	}
@@ -173,7 +173,7 @@ void decodeBlock(video_struct* video, int id)
     }
     else {
         for (int i = 0; i < 64; i++) {
-            block_zz[i] = (2 * block_zz[i] + sign(block_zz[i])) * video->cur_mb.q_scale * non_intra_q_matrix[i] / 16;
+            block_zz[i] = (2 * block_zz[i] + sign(block_zz[i])) * video->cur_mb.q_scale * video->non_intra_q_matrix[i] / 16;
             if (!(block_zz[i] & 1)) block_zz[i] -= sign(block_zz[i]);
             block_zz[i] = clip(-2048, block_zz[i], 2047);
          }
@@ -184,8 +184,8 @@ void decodeBlock(video_struct* video, int id)
 
 inline void buildBlockFromMV(video_struct* video)
 {
-    int base_x = (video->cur_mb.addr / video->width_mb) * 16;
-    int base_y = (video->cur_mb.addr % video->width_mb) * 16;
+    int base_x = (video->cur_mb.addr_incre / video->width_mb) * 16;
+    int base_y = (video->cur_mb.addr_incre % video->width_mb) * 16;
     int right_for = video->cur_mb.recon_right_for >> 1;
     int down_for = video->cur_mb.recon_down_for >> 1;
     int right_half_for = video->cur_mb.recon_right_for - (right_for << 1);
@@ -311,10 +311,10 @@ void decodeMacroblock(video_struct* video)
     	case 'B': tmp = decodeVLC(video->macro_B_VLCtable, video); break;
     	default: throw "picture type not supported";
     }
-    video->cur_mb.quant = tmp & 1 << 4;
-    video->cur_mb.motion_forward = tmp & 1 << 3;
-    video->cur_mb.motion_backward = tmp & 1 << 2;
-    video->cur_mb.pattern = tmp & 1 << 1;
+    video->cur_mb.quant = tmp & 0x10;
+    video->cur_mb.motion_forward = tmp & 0x08;
+    video->cur_mb.motion_backward = tmp & 0x04;
+    video->cur_mb.pattern = tmp & 0x02;
     video->cur_mb.intra = tmp & 1;
     video->cur_mb.q_scale = video->cur_mb.quant ? nextbits(5, video, true) : video->cur_slice.q_scale;
     video->cur_slice.q_scale = video->cur_mb.q_scale;
@@ -577,6 +577,7 @@ void Parse_Picture_Header(video_struct* video)
             memcpy(video->frame[video->nframes], video->forward_ref, video->width * video->height * sizeof(Pixel));
         }
     }
+    video->nframes++;
 }
 
 void Parse_GOP_Header(video_struct* video)
@@ -612,7 +613,7 @@ void Parse_Sequence_Header(video_struct* video)
     video->height = video->height_mb * 16;
     printf("size: %dx%d (%dx%d)\n", video->width, video->height, width_o, height_o);
 	video->pel_aspect_ratio = nextbits(4, video, true);
-    video->picture_rate = nextbits(4, video, true);
+    video->picture_rate = fps_table[nextbits(4, video, true)];
 	video->bit_rate = nextbits(18, video, true);
 	video->marker_bit = nextbits(1, video, true);
 	video->vbv_buffer_size = nextbits(10, video, true);
@@ -621,23 +622,17 @@ void Parse_Sequence_Header(video_struct* video)
     if (nextbits(1, video))
     {
         printf("Load intra Q matrix\n");
-        for (int i=0; i<8; i++)
+        for (int i=0; i<64; i++)
         {
-        	for(int j=0; j<8; j++)
-        	{
-        		video->intra_q_matrix[i][j] = nextbits(8, video, true);
-        	}
+        		video->intra_q_matrix[i] = nextbits(8, video, true);
     	}
     }
         
     if (nextbits(1, video, true)) {
         printf("Load non-intra Q matrix\n");
-        for (int i=0; i<8; i++)
+        for (int i=0; i<64; i++)
         {
-        	for(int j=0; j<8; j++)
-        	{
-        		video->non_intra_q_matrix[i][j] = nextbits(8, video, true);
-        	}
+        		video->non_intra_q_matrix[i] = nextbits(8, video, true);
     	} 
     }
 }
@@ -664,7 +659,7 @@ void Video_Sequence(video_struct* video)
 
 int main(int argc, char* argv[])
 {
-	video_truct *video;
+	video_struct *video;
 	video = (video_struct*)malloc(sizeof(video_struct));
 	init_video_struct(video);
 
@@ -689,4 +684,11 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 	Video_Sequence(video);
+	namedWindow("Display window", WINDOW_AUTOSIZE);
+	for(int i=0; i < video->nframes;i++)
+	{
+		imshow("DISPLAY window", video->frame[i]);
+		waitKey(1000/video->picture_rate);
+	}
+	return 0;
 }
